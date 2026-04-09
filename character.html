@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DC Rivals – Character Profile</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="character-page">
+    <div class="character-backdrop" id="backdrop"></div>
+
+    <button class="back-btn" id="backBtn" type="button">← Back to roster</button>
+
+    <div class="character-shell">
+      <aside class="character-hero-card">
+        <p class="character-kicker" id="roleBadge">Character Profile</p>
+        <h1 class="character-title" id="charTitle">Loading</h1>
+        <p class="character-subtitle" id="charSubtitle">Loading character details...</p>
+
+        <div class="character-portrait" id="portrait"></div>
+
+        <div class="character-badges" id="charBadges"></div>
+
+        <audio id="themeMusic" controls class="theme-audio" style="display:none"></audio>
+      </aside>
+
+      <div class="character-kit" id="kitContainer"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { findCharacter, flattenRoster, slugify } from "./assets/js/roster.js";
+    import { getQueryParam, randomFrom } from "./assets/js/utils.js";
+
+    const PS_COLORS = {
+      "Dive": "#D85A30",
+      "Brawl": "#185FA5",
+      "Poke": "#639922",
+      "Flank": "#993556",
+      "Anti-Dive": "#7F77DD",
+      "Zone Control": "#1D9E75",
+      "Sustain": "#BA7517",
+      "Utility": "#888780"
+    };
+
+    const roleLabel = { V: "Vanguard", D: "Duelist", S: "Strategist" };
+
+    function getRoleLabel(code) {
+      return roleLabel[code] || code;
+    }
+
+    const queryCharacter = getQueryParam("c") || "";
+    let slug = queryCharacter.toLowerCase();
+
+    if (slug === "random") {
+      const allCharacters = flattenRoster();
+      const randomCharacter = randomFrom(allCharacters);
+      slug = slugify(randomCharacter.n);
+    }
+
+    const character = findCharacter(slug);
+    if (!character) {
+      document.body.innerHTML = "<div style='padding:2rem;color:#fff;font-family:Inter,system-ui,sans-serif;'>Character not found.</div>";
+      throw new Error("Character not found: " + slug);
+    }
+
+    const accent = PS_COLORS[character.ps] || "#58a6ff";
+    document.documentElement.style.setProperty("--page-accent", accent);
+
+    const backdrop = document.getElementById("backdrop");
+    const portrait = document.getElementById("portrait");
+    const roleBadge = document.getElementById("roleBadge");
+    const charTitle = document.getElementById("charTitle");
+    const charSubtitle = document.getElementById("charSubtitle");
+    const charBadges = document.getElementById("charBadges");
+    const kitContainer = document.getElementById("kitContainer");
+    const themeMusic = document.getElementById("themeMusic");
+
+    const characterSlug = slugify(character.n);
+    const bgUrl = `assets/img/characters/${characterSlug}-bg.jpg`;
+    const portraitUrl = `assets/img/characters/${characterSlug}-portrait.jpg`;
+    const musicUrl = `assets/img/characters/${characterSlug}-theme.mp3`;
+
+    backdrop.style.backgroundImage = `
+      linear-gradient(180deg, rgba(3,8,20,.08), rgba(3,8,20,.45)),
+      linear-gradient(90deg, ${accent}33, transparent 55%),
+      url('${bgUrl}')`;
+
+    portrait.style.backgroundImage = `url('${portraitUrl}')`;
+
+    charTitle.textContent = character.n;
+    charSubtitle.textContent = character.primary.desc;
+    roleBadge.textContent = `${getRoleLabel(character.r)} • ${character.ps} Specialist`;
+
+    charBadges.innerHTML = `
+      <span class="dbadge role-${character.r}">${getRoleLabel(character.r)}</span>
+      <span class="dbadge" style="background:${accent}22;color:${accent};border-color:${accent}44;">${character.ps}</span>
+      <span class="dbadge">Profile</span>
+    `;
+
+    themeMusic.src = musicUrl;
+    themeMusic.style.display = "block";
+    themeMusic.addEventListener("error", () => {
+      themeMusic.style.display = "none";
+    });
+
+    function abilityCard(ability, type) {
+      const cd = ability.cd !== undefined ? ` <span class="cd">CD:${ability.cd}s</span>` : "";
+      const cast = ability.cast !== undefined ? ` <span class="cd">Cast:${ability.cast}s</span>` : "";
+      const dur = ability.dur !== undefined ? ` <span class="cd">Dur:${ability.dur}s</span>` : "";
+      const max = ability.max !== undefined ? ` <span class="cd">Max:${ability.max}</span>` : "";
+      const lim = ability.limit !== undefined ? ` <span class="cd">${ability.limit}</span>` : "";
+      return `
+        <div class="ability">
+          <div class="ability-header"><span class="ability-name">${ability.name}</span>
+            <span class="ability-type">${type}</span>${cd}${cast}${dur}${max}${lim}
+          </div>
+          <div class="ability-desc">${ability.desc}</div>
+        </div>`;
+    }
+
+    function buildKit(character) {
+      let html = `
+        <div class="detail">
+          <div class="detail-header">
+            <div>
+              <div class="detail-name">${character.n}</div>
+              <div class="detail-sub">${getRoleLabel(character.r)} • ${character.ps} Specialist</div>
+            </div>
+          </div>
+        `;
+
+      html += `<div class="kit-section"><div class="kit-label">Primary Attack</div>${abilityCard(character.primary, "Primary")}</div>`;
+      if (character.secondary) {
+        html += `<div class="kit-section"><div class="kit-label">Secondary Attack</div>${abilityCard(character.secondary, "Secondary")}</div>`;
+      }
+
+      html += `<div class="kit-section"><div class="kit-label">Abilities</div>`;
+      character.abilities.forEach((ability) => {
+        html += abilityCard(ability, ability.type || "Ability");
+      });
+      html += `</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Passives</div>`;
+      character.passives.forEach((passive) => {
+        html += `<div class="passive-item"><strong>${passive.name}</strong><p>${passive.desc}</p></div>`;
+      });
+      html += `</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Ultimate</div>${abilityCard(character.ultimate, "Ultimate")}</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Team-Ups</div>`;
+      character.teamups.forEach((teamup) => {
+        html += `<div class="teamup"><strong>w/ ${teamup.partners} — ${teamup.name}</strong><p>${teamup.desc}</p></div>`;
+      });
+      html += `</div></div>`;
+
+      return html;
+    }
+
+    kitContainer.innerHTML = buildKit(character);
+
+    document.getElementById("backBtn").addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "index.html";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DC Rivals – Heroic Showdown</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">DC</div>
+        <div class="brand-text">
+          <strong>DC RIVALS</strong>
+          <span>Official Battle Nexus</span>
+        </div>
+      </div>
+
+      <nav class="top-links">
+        <button class="top-link" id="enterRoster" type="button">Roster</button>
+        <button class="top-link" id="randomProfileNav" type="button">Random Profile</button>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="shell">
+      <div class="hero-grid">
+        <div class="hero-main">
+          <div class="hero-main-inner">
+            <div>
+              <p class="eyebrow">Live Multiversal Conflict</p>
+              <h1 class="hero-title">
+                Enter the <span class="accent">DC Rivals Arena</span>
+              </h1>
+              <p class="hero-copy">
+                Assemble iconic heroes, ruthless villains and cosmic tyrants in a team-based battleground built for rivalries, power fantasy, and comic-book spectacle.
+              </p>
+
+              <div class="hero-actions">
+                <button class="btn btn-primary" id="enterRosterBtn" type="button">View Roster</button>
+                <button class="btn btn-secondary" id="randomProfileBtn" type="button">Random Character Page</button>
+              </div>
+
+              <div class="status-pills">
+                <span class="status-pill">3 Roles</span>
+                <span class="status-pill">Multiple Seasons</span>
+                <span class="status-pill">Character Pages</span>
+                <span class="status-pill">Mobile Ready</span>
+              </div>
+            </div>
+
+            <div class="hero-metrics">
+              <div class="metric">
+                <strong id="metricRoster">0</strong>
+                <span>Playable characters</span>
+              </div>
+              <div class="metric">
+                <strong id="metricSeasons">0</strong>
+                <span>Season tabs</span>
+              </div>
+              <div class="metric">
+                <strong>24/7</strong>
+                <span>Battle network online</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="hero-side">
+          <div class="hero-card">
+            <h3>Game Overview</h3>
+            <p>
+              Vanguards control space, Duelists secure eliminations, and Strategists support, heal, or manipulate the battlefield.
+            </p>
+          </div>
+
+          <div class="hero-card">
+            <h3>Character Pages</h3>
+            <p>
+              Every fighter opens into a full-screen profile page with a personalized background, animated title, and theme music.
+            </p>
+          </div>
+
+          <div class="hero-card">
+            <h3>Background Images</h3>
+            <p>
+              Add character assets inside <code>assets/img/characters/</code> using the naming format shown in the documentation.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <main class="wrap shell" id="rosterHub">
+    <section class="panel-shell">
+      <div class="section-heading">
+        <p class="eyebrow">Playable Roster</p>
+        <h2>Choose Your Legend</h2>
+        <p>Select a fighter to preview their kit, then open their full-screen page.</p>
+      </div>
+
+      <div class="tabs" id="tabs"></div>
+      <div class="char-grid" id="charGrid"></div>
+    </section>
+
+    <div id="kitDetail">
+      <div class="no-select">Select a character to preview their page.</div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { roster, slugify, flattenRoster } from "./assets/js/roster.js";
+    import { randomFrom, getQueryParam } from "./assets/js/utils.js";
+
+    const PS_COLORS = {
+      "Dive": "#D85A30",
+      "Brawl": "#185FA5",
+      "Poke": "#639922",
+      "Flank": "#993556",
+      "Anti-Dive": "#7F77DD",
+      "Zone Control": "#1D9E75",
+      "Sustain": "#BA7517",
+      "Utility": "#888780"
+    };
+
+    const roleLabel = { V: "Vanguard", D: "Duelist", S: "Strategist" };
+    const seasonMeta = {
+      launch: { label: "Launch" },
+      s1: { label: "Season 1 — Legion of Doom" },
+      s2: { label: "Season 2 — Birds of Prey" },
+      s3: { label: "Season 3 — The Rogues" },
+      s4: { label: "Season 4 — Dark Multiverse" }
+    };
+
+    let activeSeason = "launch";
+    let selectedChar = null;
+
+    const tabsEl = document.getElementById("tabs");
+    const charGridEl = document.getElementById("charGrid");
+    const kitDetailEl = document.getElementById("kitDetail");
+
+    function getSeasonCharacters() {
+      return roster[activeSeason] || [];
+    }
+
+    function getRoleLabel(code) {
+      return roleLabel[code] || code;
+    }
+
+    function abilityCard(ability, type) {
+      const cd = ability.cd !== undefined ? ` <span class="cd">CD:${ability.cd}s</span>` : "";
+      const cast = ability.cast !== undefined ? ` <span class="cd">Cast:${ability.cast}s</span>` : "";
+      const dur = ability.dur !== undefined ? ` <span class="cd">Dur:${ability.dur}s</span>` : "";
+      const max = ability.max !== undefined ? ` <span class="cd">Max:${ability.max}</span>` : "";
+      const lim = ability.limit !== undefined ? ` <span class="cd">${ability.limit}</span>` : "";
+      return `
+        <div class="ability">
+          <div class="ability-header"><span class="ability-name">${ability.name}</span>
+            <span class="ability-type">${type}</span>${cd}${cast}${dur}${max}${lim}
+          </div>
+          <div class="ability-desc">${ability.desc}</div>
+        </div>`;
+    }
+
+    function buildKitMarkup(character, showHeader = true) {
+      const accent = PS_COLORS[character.ps] || "#58a6ff";
+      const role = getRoleLabel(character.r);
+      let html = `<div class="detail">`;
+
+      if (showHeader) {
+        html += `
+          <div class="detail-header">
+            <div>
+              <div class="detail-name">${character.n}</div>
+              <div class="detail-sub">${role} • ${character.ps} specialist</div>
+              <div class="detail-badges">
+                <span class="dbadge role-${character.r}">${role}</span>
+                <span class="dbadge" style="background:${accent}22;color:${accent};border-color:${accent}44;">${character.ps}</span>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      html += `<div class="kit-section"><div class="kit-label">Attacks</div>`;
+      html += abilityCard(character.primary, "Primary");
+      if (character.secondary) {
+        html += abilityCard(character.secondary, "Secondary");
+      }
+      html += `</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Abilities</div>`;
+      character.abilities.forEach((ability) => {
+        html += abilityCard(ability, ability.type || "Ability");
+      });
+      html += `</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Passives</div>`;
+      character.passives.forEach((passive) => {
+        html += `<div class="passive-item"><strong>${passive.name}</strong><p>${passive.desc}</p></div>`;
+      });
+      html += `</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Ultimate</div>`;
+      html += abilityCard(character.ultimate, "Ultimate");
+      html += `</div>`;
+
+      html += `<div class="kit-section"><div class="kit-label">Team-Ups</div>`;
+      character.teamups.forEach((teamup) => {
+        html += `<div class="teamup"><strong>w/ ${teamup.partners} — ${teamup.name}</strong><p>${teamup.desc}</p></div>`;
+      });
+      html += `</div></div>`;
+
+      return html;
+    }
+
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      Object.entries(seasonMeta).forEach(([key, meta]) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tab" + (key === activeSeason ? " active" : "");
+        btn.textContent = meta.label;
+        btn.addEventListener("click", () => {
+          activeSeason = key;
+          selectedChar = null;
+          renderAll();
+        });
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderGrid() {
+      const characters = getSeasonCharacters();
+      charGridEl.innerHTML = "";
+
+      characters.forEach((character) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "char-btn" + (selectedChar === character.n ? " selected" : "");
+        btn.style.borderLeftColor = PS_COLORS[character.ps] || "#ccc";
+        btn.innerHTML = `
+          <div class="char-btn-name">${character.n}</div>
+          <div class="char-btn-badges">
+            <span class="badge role-${character.r}">${getRoleLabel(character.r)}</span>
+            <span class="badge">${character.ps}</span>
+          </div>
+          <div class="char-btn-cta">Open preview</div>`;
+
+        btn.addEventListener("click", () => {
+          selectedChar = character.n;
+          renderAll();
+        });
+
+        charGridEl.appendChild(btn);
+      });
+    }
+
+    function renderSpotlight() {
+      const characters = getSeasonCharacters();
+      if (!characters.length) {
+        kitDetailEl.innerHTML = `<div class="no-select">No characters in this season.</div>`;
+        return;
+      }
+
+      if (!selectedChar || !characters.some((character) => character.n === selectedChar)) {
+        selectedChar = characters[0].n;
+      }
+
+      const character = characters.find((character) => character.n === selectedChar);
+      const accent = PS_COLORS[character.ps] || "#58a6ff";
+      const slug = slugify(character.n);
+      const bg = `assets/img/characters/${slug}-bg.jpg`;
+
+      kitDetailEl.innerHTML = `
+        <section class="spotlight">
+          <div class="spotlight-media" style="background-image:
+              linear-gradient(180deg, rgba(3,8,20,.12), rgba(3,8,20,.55)),
+              linear-gradient(90deg, ${accent}22, transparent 55%),
+              url('${bg}');"></div>
+
+          <div class="spotlight-copy">
+            <p class="spotlight-kicker">${seasonMeta[activeSeason].label} Spotlight</p>
+            <h2 class="spotlight-title">${character.n}</h2>
+            <div class="spotlight-badges">
+              <span class="dbadge role-${character.r}">${getRoleLabel(character.r)}</span>
+              <span class="dbadge" style="background:${accent}22;color:${accent};border-color:${accent}44;">${character.ps}</span>
+            </div>
+            <p class="spotlight-desc">${character.primary.desc}</p>
+            <div class="spotlight-actions">
+              <button class="btn btn-primary" type="button" id="openProfileBtn">Open Character Page</button>
+              <button class="btn btn-secondary" type="button" id="randomSpotlightBtn">Random Character</button>
+            </div>
+          </div>
+        </section>
+        ${buildKitMarkup(character, true)}
+      `;
+
+      document.getElementById("openProfileBtn").addEventListener("click", () => {
+        window.open(`character.html?c=${slug}`, "_blank");
+      });
+
+      document.getElementById("randomSpotlightBtn").addEventListener("click", () => {
+        const randomCharacter = randomFrom(characters);
+        selectedChar = randomCharacter.n;
+        renderAll();
+      });
+    }
+
+    function updateStats() {
+      const totalCharacters = flattenRoster().length;
+      document.getElementById("metricRoster").textContent = totalCharacters;
+      document.getElementById("metricSeasons").textContent = Object.keys(seasonMeta).length;
+    }
+
+    function renderAll() {
+      renderTabs();
+      renderGrid();
+      renderSpotlight();
+    }
+
+    document.getElementById("enterRosterBtn").addEventListener("click", () => {
+      document.getElementById("rosterHub").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("randomProfileBtn").addEventListener("click", () => {
+      window.open("character.html?c=random", "_blank");
+    });
+
+    document.getElementById("randomProfileNav").addEventListener("click", () => {
+      window.open("character.html?c=random", "_blank");
+    });
+
+    updateStats();
+    renderAll();
+  </script>
+</body>
+</html>
